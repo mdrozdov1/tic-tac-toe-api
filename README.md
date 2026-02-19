@@ -41,8 +41,21 @@ docker build -t tictactoe-app .
 docker run -d -p 8000:8000 --name tictactoe-server tictactoe-app
 ```
 
+### Run in a virtual env locally
+Create a virtual environment and install requirements:
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Run main.py:
+```bash
+python main.py
+```
+
 ### Play the Game
-Once the server is running, launch the interactive terminal client:
+Once the server is running, launch the interactive client in a separate terminal:
 
 ```bash
 python play.py
@@ -65,6 +78,55 @@ Once the server is running, you can access the interactive Swagger UI documentat
 #### Gameplay
 - POST `/games/{game_id}/move`: Submit a move for Player X.
   - Input: JSON coordinates { "x": int, "y": int }.
+ 
+## API Usage Examples
+
+In addition to the interactive `play.py` script, you can interact with the API programmatically using standard Python libraries like `requests`.
+
+### List All Games
+Fetch a list of all active and completed games to view their IDs and status.
+
+```python
+import requests
+
+response = requests.get("http://localhost:8000/games")
+games = response.json()
+
+print(f"Found {len(games)} games:")
+for game in games:
+    print(f"ID: {game['game_id']} | Status: {game['status']} | Moves: {game['move_count']}")
+```
+
+### Get Move History
+Retrieve the full chronological history of moves for a specific game ID.
+
+```python
+import requests
+
+game_id = 1  # Replace with your target game ID
+
+response = requests.get(f"http://localhost:8000/games/{game_id}/moves")
+
+if response.status_code == 200:
+    moves = response.json()
+    print(f"History for Game #{game_id}:")
+    for move in moves:
+        print(f"Move {move['move_number']}: {move['player']} placed at ({move['x']}, {move['y']})")
+else:
+    print("Game not found.")
+```
+
+### Create a Custom 5x5 Game
+Manually create a larger board using the size query parameter.
+```python
+import requests
+
+response = requests.post("http://localhost:8000/games", params={"size": 5})
+game = response.json()
+
+print(f"Created 5x5 Game (ID: {game['game_id']})")
+print(game['visual_board'])
+```
 
 ### Testing
 The project includes a suite of tests covering database initialization, game logic, and API edge cases.
