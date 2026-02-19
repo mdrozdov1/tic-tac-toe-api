@@ -79,11 +79,11 @@ Once the server is running, you can access the interactive Swagger UI documentat
 - POST `/games/{game_id}/move`: Submit a move for Player X.
   - Input: JSON coordinates { "x": int, "y": int }.
  
-## API Usage Examples
+### API Usage Examples
 
 In addition to the interactive `play.py` script, you can interact with the API programmatically using standard Python libraries like `requests`.
 
-### List All Games
+#### List All Games
 Fetch a list of all active and completed games to view their IDs and status.
 
 ```python
@@ -97,7 +97,7 @@ for game in games:
     print(f"ID: {game['game_id']} | Status: {game['status']} | Moves: {game['move_count']}")
 ```
 
-### Get Move History
+#### Get Move History
 Retrieve the full chronological history of moves for a specific game ID.
 
 ```python
@@ -116,7 +116,7 @@ else:
     print("Game not found.")
 ```
 
-### Create a Custom 5x5 Game
+#### Create a Custom 5x5 Game
 Manually create a larger board using the size query parameter.
 ```python
 import requests
@@ -135,4 +135,10 @@ To run the tests inside the container:
 
 ```bash
 docker exec -it tictactoe-server pytest
+```
+
+To run the tests locally in a virtual env:
+
+```bash
+pytest
 ```
