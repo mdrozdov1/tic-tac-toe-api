@@ -2,6 +2,7 @@
 
 A containerized, full-stack Tic-Tac-Toe game featuring a FastAPI server, SQLModel for persistence, and a terminal-based interactive client.
 
+![Tic-Tac-Toe Demo](tictactoegif.gif)
 ---
 
 ## Features
