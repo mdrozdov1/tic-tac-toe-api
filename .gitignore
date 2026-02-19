@@ -3,7 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 .DS_Store
-.db
+**/*.vscode
+**/*.db
 
 # C extensions
 *.so

@@ -1,15 +1,14 @@
 import random
-import sqlite3
+import time
 from contextlib import asynccontextmanager
-from typing import List, Optional, Tuple
-
-from fastapi import FastAPI, HTTPException
-from sqlalchemy.engine import Engine
-from sqlmodel import Session, SQLModel, create_engine, select
+from typing import List
 
 import utils
 from db import SQLITE_URL, Games, Moves, init_db
+from fastapi import FastAPI, HTTPException, Request
+from logger import logger
 from models import *
+from sqlmodel import Session, create_engine, select
 
 engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
 
@@ -21,6 +20,30 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Ethyca Tic-Tac-Toe", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.perf_counter()
+
+    response = await call_next(request)
+
+    process_time = (time.perf_counter() - start_time) * 1000
+    formatted_process_time = f"{process_time:.2f}ms"
+
+    log_dict = {
+        "method": request.method,
+        "path": request.url.path,
+        "status_code": response.status_code,
+        "duration": formatted_process_time,
+    }
+
+    logger.info(
+        f"Request: {log_dict['method']} {log_dict['path']} "
+        f"completed in {log_dict['duration']} with status {log_dict['status_code']}"
+    )
+
+    return response
 
 
 @app.post("/games", response_model=GameOutput, status_code=201)
@@ -37,7 +60,7 @@ def create_game(size: int = 3):
 
         return GameOutput(
             game_id=new_game.id,
-            status=new_game.status,
+            status=GameStatus(new_game.status),
             created_at=new_game.created_at,
             move_count=0,
             visual_board=utils.format_board_ascii([["."] * size for _ in range(size)]),
@@ -127,7 +150,7 @@ def make_move(game_id: int, move: MoveInput):
 
         return GameOutput(
             game_id=game.id,
-            status=game.status,
+            status=GameStatus(game.status),
             created_at=game.created_at,
             move_count=len(game.moves),
             visual_board=utils.format_board_ascii(board),
