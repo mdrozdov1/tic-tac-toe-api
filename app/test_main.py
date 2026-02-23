@@ -92,7 +92,7 @@ def test_make_move_out_of_bounds(client, new_game):
 def test_make_move_negative_coordinates(client, new_game):
     """Test that negative coordinates are rejected by the model validator."""
     response = client.post(f"/games/{new_game['id']}/moves/", json={"x": -1, "y": 0})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_make_move_occupied_square(client, new_game):

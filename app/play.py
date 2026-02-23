@@ -47,7 +47,7 @@ def play():
             if move_resp.status_code == 409:
                 print("⛔ That square is already taken!")
                 continue
-            if move_resp.status_code == 400:
+            if move_resp.status_code in (400,422):
                 print("⛔ Invalid move: coordinates must be >= 0 and within the board.")
                 continue
 

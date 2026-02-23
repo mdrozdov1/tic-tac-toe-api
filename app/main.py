@@ -6,8 +6,8 @@ import utils
 from config import APP_NAME
 from db import SQLITE_URL, GameBase, GameOutput, Games, MoveHistoryItem, init_db
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import PlainTextResponse
 from logger import logger
 from models import GameStatus, MoveInput
 from services import game_service
@@ -27,9 +27,7 @@ app = FastAPI(title=APP_NAME, lifespan=lifespan)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    log_str = f"Validation error on {request.method} {request.url.path}: {exc.errors()}"
-    logger.warning(log_str)
-    return PlainTextResponse(status_code=400, content=log_str)
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.middleware("http")
