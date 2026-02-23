@@ -1,47 +1,54 @@
 from datetime import datetime
 from typing import List, Optional
 
+from models import GameStatus, Player
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import declared_attr
 from sqlmodel import Field, Relationship, SQLModel
-
-from models import GameStatus
 
 DB_FILE = "tictactoe.db"
 SQLITE_URL = f"sqlite:///{DB_FILE}"
 
 
-class Base:
-    __table_args__ = {"extend_existing": True}
-
-    @declared_attr # type: ignore
-    def __tablename__(cls) -> str:
-        return cls.__name__.lower() # type: ignore
-
-
-class Games(Base, SQLModel, table=True):
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=datetime.now)
-    status: str = Field(default=GameStatus.IN_PROGRESS.value)
+class GameBase(SQLModel):
     board_size: int = Field(default=3)
-    winner: Optional[str] = None
+
+
+class Games(GameBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    status: GameStatus = Field(default=GameStatus.IN_PROGRESS)
+    created_at: datetime = Field(default_factory=datetime.now)
+    winner: Optional[Player] = Field(default=None)
 
     moves: List["Moves"] = Relationship(back_populates="game")
 
 
-class Moves(Base, SQLModel, table=True):
+class GameOutput(GameBase):
+    id: int
+    status: GameStatus
+    created_at: datetime
+    move_count: int
+    visual_board: str
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    player: str
+
+class MoveBase(SQLModel):
+    player: Player
     x: int
     y: int
     move_number: int
     created_at: datetime = Field(default_factory=datetime.now)
 
+
+class Moves(MoveBase, table=True):
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
     # Foreign Key
     game_id: int = Field(foreign_key="games.id")
     game: Games = Relationship(back_populates="moves")
+
+
+class MoveHistoryItem(MoveBase):
+    game_id: int
 
 
 def init_db(engine: Engine):

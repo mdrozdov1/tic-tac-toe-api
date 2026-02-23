@@ -1,27 +1,29 @@
-import sys
-
 import requests
-
-BASE_URL = "http://127.0.0.1:8000"
+from config import BASE_URL
 
 
 def play():
     print("🎮 CONNECTING TO TIC-TAC-TOE SERVER...")
 
     try:
-        board_size = int(input(f"Choose your board size: "))
-
-        response = requests.post(f"{BASE_URL}/games", params={"size": board_size})
+        board_size = int(input("Choose your board size: "))
+        response = requests.post(f"{BASE_URL}/games", json={"board_size": board_size})
         response.raise_for_status()
     except requests.exceptions.ConnectionError:
         print("❌ Error: Could not connect to localhost:8000. Is the server running?")
         return
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ Server error: {e.response.json().get('detail', str(e))}")
+        return
+    except ValueError:
+        print("⚠️  Please enter a number for board size.")
+        return
 
     game = response.json()
-    game_id = game["game_id"]
+    game_id = game["id"]
 
     print(f"\n✅ Game #{game_id} Created!")
-    print(f"📝 Instructions: Enter coordinates as 'x y' (e.g., '1 1' for center).")
+    print("📝 Instructions: Enter coordinates as 'x y' (e.g., '1 1' for center).")
     print(game["visual_board"])
 
     while game["status"] == "IN_PROGRESS":
@@ -39,14 +41,14 @@ def play():
             x, y = int(parts[0]), int(parts[1])
 
             move_resp = requests.post(
-                f"{BASE_URL}/games/{game_id}/move", json={"x": x, "y": y}
+                f"{BASE_URL}/games/{game_id}/moves/", json={"x": x, "y": y}
             )
 
             if move_resp.status_code == 409:
                 print("⛔ That square is already taken!")
                 continue
             if move_resp.status_code == 400:
-                print("⛔ Out of bounds! x and y must be 0, 1, or 2.")
+                print("⛔ Invalid move: coordinates must be >= 0 and within the board.")
                 continue
 
             move_resp.raise_for_status()
@@ -58,8 +60,8 @@ def play():
 
         except ValueError:
             print("⚠️  Please enter numbers only.")
-        except Exception as e:
-            print(f"❌ Error: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Network error: {e}")
             break
 
     print(f"\n🏁 GAME OVER! Result: {game['status']}")

@@ -1,13 +1,16 @@
-import random
 import time
 from contextlib import asynccontextmanager
 from typing import List
 
 import utils
-from db import SQLITE_URL, Games, Moves, init_db
+from config import APP_NAME
+from db import SQLITE_URL, GameBase, GameOutput, Games, MoveHistoryItem, init_db
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import PlainTextResponse
 from logger import logger
-from models import *
+from models import GameStatus, MoveInput
+from services import game_service
 from sqlmodel import Session, create_engine, select
 
 engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
@@ -19,55 +22,59 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Ethyca Tic-Tac-Toe", lifespan=lifespan)
+app = FastAPI(title=APP_NAME, lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    log_str = f"Validation error on {request.method} {request.url.path}: {exc.errors()}"
+    logger.warning(log_str)
+    return PlainTextResponse(status_code=400, content=log_str)
 
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    logger.info(f"→ {request.method} {request.url.path}")
     start_time = time.perf_counter()
 
     response = await call_next(request)
 
     process_time = (time.perf_counter() - start_time) * 1000
-    formatted_process_time = f"{process_time:.2f}ms"
-
-    log_dict = {
-        "method": request.method,
-        "path": request.url.path,
-        "status_code": response.status_code,
-        "duration": formatted_process_time,
-    }
-
     logger.info(
-        f"Request: {log_dict['method']} {log_dict['path']} "
-        f"completed in {log_dict['duration']} with status {log_dict['status_code']}"
+        f"← {request.method} {request.url.path} "
+        f"{response.status_code} ({process_time:.2f}ms)"
     )
 
     return response
 
 
 @app.post("/games", response_model=GameOutput, status_code=201)
-def create_game(size: int = 3):
+def create_game(game: GameBase):
     """Create a new game of Noughts and Crosses."""
-    if size < 3 or size > 10:
+    if game.board_size < 3 or game.board_size > 10:
         raise HTTPException(status_code=400, detail="Size must be between 3 and 10")
 
     with Session(engine) as session:
-        new_game = Games(board_size=size, status=GameStatus.IN_PROGRESS.value)
+        new_game = Games.model_validate(game)
         session.add(new_game)
         session.commit()
         session.refresh(new_game)
+        assert new_game.id is not None
+
+        logger.info(f"Game #{new_game.id} created (size={game.board_size})")
 
         return GameOutput(
-            game_id=new_game.id,
-            status=GameStatus(new_game.status),
+            id=new_game.id,
+            status=new_game.status,
             created_at=new_game.created_at,
             move_count=0,
-            visual_board=utils.format_board_ascii([["."] * size for _ in range(size)]),
+            visual_board=utils.format_board_ascii(
+                [["."] * game.board_size for _ in range(game.board_size)]
+            ),
         )
 
 
-@app.post("/games/{game_id}/move", response_model=GameOutput)
+@app.post("/games/{game_id}/moves/", response_model=GameOutput)
 def make_move(game_id: int, move: MoveInput):
     """
     Make a move as Player X.
@@ -79,77 +86,34 @@ def make_move(game_id: int, move: MoveInput):
         if not game:
             raise HTTPException(status_code=404, detail="Game not found")
 
-        if game.status != GameStatus.IN_PROGRESS.value:
+        if game.status != GameStatus.IN_PROGRESS:
+            board = utils.get_board_state(game)
             return GameOutput(
-                game_id=game_id,
+                id=game_id,
                 status=GameStatus(game.status),
                 created_at=game.created_at,
-                move_count=0,
-                visual_board="Game Over",
+                move_count=len(game.moves),
+                visual_board=utils.format_board_ascii(board),
             )
 
-        board = utils.get_board_state(game)
-        mapped_y = (game.board_size - 1) - move.y
-
-        if not (0 <= move.x < game.board_size and 0 <= move.y < game.board_size):
-            raise HTTPException(status_code=400, detail="Out of bounds")
-        if board[mapped_y][move.x] != ".":
-            raise HTTPException(status_code=409, detail="Square occupied")
-
-        # Record User Move
-        new_move = Moves(
-            game_id=game.id,
-            player=Player.X,
-            x=move.x,
-            y=move.y,
-            move_number=len(game.moves) + 1,
-        )
-        session.add(new_move)
-        board[mapped_y][move.x] = Player.X.value
-
-        # Check if User Won
-        winner = utils.check_win(board, game.board_size)
-
-        if winner:
-            game.status = GameStatus.X_WON
-            game.winner = Player.X
-        elif utils.is_board_full(board):
-            game.status = GameStatus.DRAW
-        else:
-            # Computer Move
-            available_moves = [
-                (r, c)
-                for r in range(game.board_size)
-                for c in range(game.board_size)
-                if board[r][c] == "."
-            ]
-            if available_moves:
-                comp_y, comp_x = random.choice(available_moves)  # Random AI
-                comp_mapped_y = (game.board_size - 1) - comp_y
-
-                ai_move = Moves(
-                    game_id=game.id,
-                    player=Player.O.value,
-                    x=comp_x,
-                    y=comp_mapped_y,
-                    move_number=len(game.moves) + 2,
-                )
-                session.add(ai_move)
-                board[comp_y][comp_x] = Player.O.value
-
-                # Check if Computer Won
-                if utils.check_win(board, game.board_size):
-                    game.status = GameStatus.O_WON
-                    game.winner = Player.O
-                elif utils.is_board_full(board):
-                    game.status = GameStatus.DRAW
+        try:
+            board = game_service.process_move(game, move.x, move.y, session)
+        except ValueError as e:
+            detail = str(e)
+            status_code = 409 if detail == "Square occupied" else 400
+            raise HTTPException(status_code=status_code, detail=detail)
 
         session.add(game)
         session.commit()
         session.refresh(game)
 
+        logger.info(
+            f"Game #{game_id}: X played ({move.x},{move.y}), status={game.status}"
+            + (f", winner={game.winner}" if game.winner else "")
+        )
+
         return GameOutput(
-            game_id=game.id,
+            id=game_id,
             status=GameStatus(game.status),
             created_at=game.created_at,
             move_count=len(game.moves),
@@ -157,7 +121,7 @@ def make_move(game_id: int, move: MoveInput):
         )
 
 
-@app.get("/games/{game_id}/moves", response_model=List[MoveHistoryItem])
+@app.get("/games/{game_id}/moves/", response_model=List[MoveHistoryItem])
 def get_game_moves(game_id: int):
     """View all moves in a game, chronologically ordered."""
     with Session(engine) as session:
@@ -166,24 +130,24 @@ def get_game_moves(game_id: int):
         if not game:
             raise HTTPException(status_code=404, detail="Game not found")
 
-        sorted_moves = sorted(game.moves, key=lambda m: m.move_number)
-
-        return sorted_moves
+        return sorted(game.moves, key=lambda m: m.move_number)
 
 
 @app.get("/games", response_model=List[GameOutput])
 def list_games():
+    """List all games with their current board state."""
     with Session(engine) as session:
         games = session.exec(select(Games)).all()
         return [
             GameOutput(
-                game_id=game.id,
+                id=game.id,
                 status=GameStatus(game.status),
                 created_at=game.created_at,
                 move_count=len(game.moves),
                 visual_board=utils.format_board_ascii(utils.get_board_state(game)),
             )
             for game in games
+            if game.id is not None
         ]
 
 

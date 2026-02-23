@@ -12,6 +12,8 @@ A containerized, full-stack Tic-Tac-Toe game featuring a FastAPI server, SQLMode
 * Automated Opponent: Includes a random-move AI (Player O) that responds immediately to your moves.
 * Data Persistence: Uses SQLite via SQLModel to store game states and move history.
 * ASCII Visualization: A custom board formatter provides a clear visual state in your terminal.
+* Input Validation: Move coordinates are validated (must be non-negative and within bounds) with structured error responses.
+* Structured Logging: Request/response middleware logging and business-logic logging to console and file, configurable via environment variables.
 
 ---
 
@@ -67,17 +69,29 @@ Note: Ensure you have the requests library installed.
 Once the server is running, you can access the interactive Swagger UI documentation at:
 `http://localhost:8000/docs`
 
+### Environment Variables
+
+The server behaviour can be tuned without code changes:
+
+| Variable | Default | Description |
+|---|---|---|
+| `BASE_URL` | `http://127.0.0.1:8000` | Server URL used by the CLI client |
+| `LOG_LEVEL` | `INFO` | Python logging level (`DEBUG`, `INFO`, `WARNING`, …) |
+| `LOG_FILE` | `app.log` | Path for the log file |
+| `APP_NAME` | `Tic-Tac-Toe` | Application name shown in the Swagger UI title |
+
 ### API Reference
 #### Games
-- POST `/games?size=3`: Create a new game session.
+- `POST /games`: Create a new game session.
+  - Body (JSON, all fields optional): `{ "board_size": 3 }` — board size must be between 3 and 10.
 
-- GET `/games`: List all active and completed games.
+- `GET /games`: List all active and completed games.
 
-- GET `/games/{game_id}/moves`: View the full chronological history for a specific match.
+- `GET /games/{game_id}/moves/`: View the full chronological history for a specific match.
 
 #### Gameplay
-- POST `/games/{game_id}/move`: Submit a move for Player X.
-  - Input: JSON coordinates { "x": int, "y": int }.
+- `POST /games/{game_id}/moves/`: Submit a move for Player X. The AI (O) responds immediately.
+  - Body (JSON): `{ "x": int, "y": int }` — coordinates are 0-indexed; both must be ≥ 0 and within the board.
  
 ### API Usage Examples
 
@@ -94,7 +108,7 @@ games = response.json()
 
 print(f"Found {len(games)} games:")
 for game in games:
-    print(f"ID: {game['game_id']} | Status: {game['status']} | Moves: {game['move_count']}")
+    print(f"ID: {game['id']} | Status: {game['status']} | Moves: {game['move_count']}")
 ```
 
 #### Get Move History
@@ -117,14 +131,14 @@ else:
 ```
 
 #### Create a Custom 5x5 Game
-Manually create a larger board using the size query parameter.
+Manually create a larger board by sending `board_size` in the request body.
 ```python
 import requests
 
-response = requests.post("http://localhost:8000/games", params={"size": 5})
+response = requests.post("http://localhost:8000/games", json={"board_size": 5})
 game = response.json()
 
-print(f"Created 5x5 Game (ID: {game['game_id']})")
+print(f"Created 5x5 Game (ID: {game['id']})")
 print(game['visual_board'])
 ```
 

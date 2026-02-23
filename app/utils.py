@@ -1,17 +1,33 @@
+import random
 from typing import List, Optional
 
-from db import Games, Moves
-from models import *
+from db import Games
+from models import Player
 
 
-def get_board_state(game: Games):
-    """Reconstructs the board from the list of moves in the game object."""
+def map_y(y: int, size: int) -> int:
+    """Convert between visual y-coordinate (y=0 at bottom) and board row index (row=0 at top)."""
+    return (size - 1) - y
+
+
+def get_board_state(game: Games) -> List[List[str]]:
+    """Reconstruct the 2D board from the game's move history."""
     size = game.board_size
     board = [["." for _ in range(size)] for _ in range(size)]
     for m in game.moves:
-        mapped_y = (size - 1) - m.y
-        board[mapped_y][m.x] = m.player
+        board[map_y(m.y, size)][m.x] = m.player
     return board
+
+
+def get_ai_move(board: List[List[str]], size: int) -> Optional[tuple]:
+    """Return a random available move as visual (x, y) coordinates, or None if board is full."""
+    available = [
+        (col, map_y(row, size))
+        for row in range(size)
+        for col in range(size)
+        if board[row][col] == "."
+    ]
+    return random.choice(available) if available else None
 
 
 def check_win(board: List[List[str]], size: int) -> Optional[Player]:
@@ -34,7 +50,7 @@ def is_board_full(board: List[List[str]]) -> bool:
 
 
 def format_board_ascii(board: List[List[str]]) -> str:
-    """The visualizer."""
+    """Render the board as a labeled ASCII grid."""
     display = "\n"
     size = len(board)
     divider_length = (4 * size) - 3

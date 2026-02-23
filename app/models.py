@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class Player(str, Enum):
@@ -20,27 +20,10 @@ class MoveInput(BaseModel):
     x: int
     y: int
 
-
-class MoveOutput(BaseModel):
-    player: Player
-    x: int
-    y: int
-    move_number: int
-    timestamp: str
-
-
-class GameOutput(BaseModel):
-    game_id: int
-    status: GameStatus
-    created_at: datetime
-    move_count: int
-    visual_board: str
-
-
-class MoveHistoryItem(BaseModel):
-    game_id: int
-    player: str
-    x: int
-    y: int
-    move_number: int
-    created_at: datetime
+    @field_validator("x", "y")
+    @classmethod
+    def must_be_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("must be >= 0")
+        return v
+    
