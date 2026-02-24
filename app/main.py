@@ -1,5 +1,6 @@
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import List
 
 import utils
@@ -8,10 +9,13 @@ from db import SQLITE_URL, GameBase, GameOutput, Games, MoveHistoryItem, init_db
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse
 from logger import logger
 from models import GameStatus, MoveInput
 from services import game_service
 from sqlmodel import Session, create_engine, select
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
 
@@ -23,6 +27,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=APP_NAME, lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+def serve_ui():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.exception_handler(RequestValidationError)
@@ -63,6 +72,7 @@ def create_game(game: GameBase):
 
         return GameOutput(
             id=new_game.id,
+            board_size=new_game.board_size,
             status=new_game.status,
             created_at=new_game.created_at,
             move_count=0,
@@ -88,6 +98,7 @@ def make_move(game_id: int, move: MoveInput):
             board = utils.get_board_state(game)
             return GameOutput(
                 id=game_id,
+                board_size=game.board_size,
                 status=GameStatus(game.status),
                 created_at=game.created_at,
                 move_count=len(game.moves),
@@ -112,6 +123,7 @@ def make_move(game_id: int, move: MoveInput):
 
         return GameOutput(
             id=game_id,
+            board_size=game.board_size,
             status=GameStatus(game.status),
             created_at=game.created_at,
             move_count=len(game.moves),
@@ -139,6 +151,7 @@ def list_games():
         return [
             GameOutput(
                 id=game.id,
+                board_size=game.board_size,
                 status=GameStatus(game.status),
                 created_at=game.created_at,
                 move_count=len(game.moves),

@@ -1,8 +1,24 @@
 # Tic-Tac-Toe API
 
-A containerized, full-stack Tic-Tac-Toe game featuring a FastAPI server, SQLModel for persistence, and a terminal-based interactive client.
+A containerized, full-stack Tic-Tac-Toe game featuring a FastAPI server, SQLModel for persistence, a browser-based UI, and a terminal-based interactive client.
 
-![Tic-Tac-Toe Demo](tictactoegif.gif)
+## Web UI
+
+Play directly in your browser at `http://localhost:8000` — no extra setup required.
+
+![Web UI Demo](app.gif)
+
+**Features at a glance:**
+- Choose a board size (3×3 up to 7×7) and your piece symbol (X or an emoji)
+- Moves stream in real time; the AI responds instantly
+- Sidebar shows all previous games with results and timestamps
+
+---
+
+## Terminal Client
+
+![Terminal Demo](tictactoegif.gif)
+
 ---
 
 ## Features
@@ -11,6 +27,7 @@ A containerized, full-stack Tic-Tac-Toe game featuring a FastAPI server, SQLMode
 * Dynamic Board Size: Supports grids from 3x3 up to 10x10.
 * Automated Opponent: Includes a random-move AI (Player O) that responds immediately to your moves.
 * Data Persistence: Uses SQLite via SQLModel to store game states and move history.
+* Browser UI: A single-page interface served at `/` — pick your piece, choose a board size, and play.
 * ASCII Visualization: A custom board formatter provides a clear visual state in your terminal.
 * Input Validation: Move coordinates are validated (must be non-negative and within bounds) with structured error responses.
 * Structured Logging: Request/response middleware logging and business-logic logging to console and file, configurable via environment variables.
@@ -57,7 +74,10 @@ python main.py
 ```
 
 ### Play the Game
-Once the server is running, launch the interactive client in a separate terminal:
+
+**Web UI (recommended):** Open `http://localhost:8000` in your browser.
+
+**Terminal client:** Launch the interactive client in a separate terminal:
 
 ```bash
 python play.py
